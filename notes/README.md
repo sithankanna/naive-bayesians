@@ -1,6 +1,6 @@
 ## Bayesian ML Roadmap
 Free resources to help you become a bayesian in [XX] hrs
-Inspired by [roadmap.sh](roadmap.sh)
+Inspired by [roadmap.sh](http://roadmap.sh)
 
 #### Basics
 * Conditional Probability & Bayes Rule 
