@@ -17,15 +17,13 @@ class Leaf:
     """Just want the class probabilities"""
 
     def __init__(self, rows):
-        self.class_probs = self.find_class_probabilities(rows)
+        self.mean = self.find_leaf_mean(rows)
 
-    def find_class_probabilities(self, rows: pd.DataFrame) -> Dict:
-        n = len(rows)
-        clas_prob = rows.groupby("label").agg(**{"prob": ("label", "count")}) / n
-        return clas_prob.to_dict()
+    def find_leaf_mean(self, rows: pd.DataFrame) -> Dict:
+        return np.mean(rows["label"])
 
     def __repr__(self) -> str:
-        return str(self.class_probs)
+        return str(self.mean)
 
 
 class Question:
@@ -55,7 +53,7 @@ class Question:
 
 
 # At every node I want to find the best question
-class DecisionTree:
+class RegressionTree:
     def __init__(self, features):
         self.features = features
 
@@ -64,6 +62,10 @@ class DecisionTree:
         n = len(rows)
         clas_prob = rows.groupby("label").agg(**{"prob": ("label", "count")}) / n
         return 1 - np.sum(clas_prob["prob"] ** 2)
+
+    @staticmethod
+    def variance(rows: pd.DataFrame) -> pd.DataFrame:
+        return np.var(rows["label"])
 
     def weighted_average_gini(self, true_values, false_values):
         n_true = len(true_values)
@@ -74,6 +76,15 @@ class DecisionTree:
         ) * self.gini(false_values)
         return weighted_gini
 
+    def weighted_average_variance(self, true_values, false_values):
+        n_true = len(true_values)
+        n_false = len(false_values)
+        n = n_true + n_false
+        weighted_var = (n_true / n) * self.variance(true_values) + (
+            n_false / n
+        ) * self.variance(false_values)
+        return weighted_var
+
     def find_unique_values(self, series: pd.Series) -> List:
         return series.drop_duplicates().to_list()
 
@@ -82,7 +93,7 @@ class DecisionTree:
         # for every feature I want to create a bunch of questions
         # I want to find the question which reduces the gini the most
         # #
-        impurity_before_split = self.gini(rows)
+        variance_before_split = self.variance(rows)
 
         best_question = None
         best_gain = 0
@@ -94,10 +105,16 @@ class DecisionTree:
                 is_cond_true = q.ask(rows=rows)
                 true_rows, false_rows = rows[is_cond_true], rows[~is_cond_true]
                 # get weighted average gini
-                impurity_after_split = self.weighted_average_gini(true_rows, false_rows)
+                variance_after_split = self.weighted_average_variance(
+                    true_rows, false_rows
+                )
                 # find the information gain from asking the question
-                info_gain = impurity_before_split - impurity_after_split
-                if info_gain >= best_gain:
+                info_gain = variance_before_split - variance_after_split
+                if (
+                    (info_gain >= best_gain)
+                    & (len(true_rows) > 2)
+                    & (len(false_rows) > 2)
+                ):
                     best_question = q
                     best_gain = info_gain
 
@@ -148,10 +165,8 @@ def predict(node, row: pd.DataFrame, level=0):
     prefix = " " * 2 ** level + "|__" if level > 0 else ""
 
     if isinstance(node, Leaf):
-        return node.class_probs
+        return node.mean
     is_cond_true = node.question.ask(row)
-
-    print(prefix, node.question, is_cond_true.values[0])
 
     if is_cond_true.values[0]:
         return predict(node=node.true_node, row=row)
