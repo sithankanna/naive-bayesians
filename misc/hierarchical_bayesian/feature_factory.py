@@ -2,10 +2,12 @@ import pandas as pd
 
 
 class FeatureFactory:
-    def __init__(self, date_col: str = None) -> None:
+    def __init__(self, date_col: str = None, hierarchical_col: str = None) -> None:
         """ """
 
         self.date_col = date_col
+        self.hierarchical_col = hierarchical_col
+
         if date_col is None:
             self.date_col = "date"
         else:
@@ -84,3 +86,18 @@ class FeatureFactory:
         """
 
         return date.dt.dayofweek
+
+    def hierarchical_features(
+        self, df: pd.DataFrame, hierarchical_col: str
+    ) -> pd.DataFrame:
+        if hierarchical_col is None:
+            index_col = 0
+        else:
+            distinct_values = set(df[hierarchical_col])
+            mapping = {val: i for i, val in enumerate(distinct_values)}
+            index_col = df[hierarchical_col].map(mapping)
+
+        df = df.assign(**{"hierarchical_index": index_col})
+
+        # self.features += ["hierarchical_index"]
+        return df
